@@ -1,0 +1,14 @@
+{
+  "apiKey": "你的 API Key",
+  "apiSecret": "你的 API Secret",
+  "baseURL": "https://api.binance.com",
+  "fapiBaseURL": "https://fapi.binance.com",
+  "addr": "127.0.0.1:8080",
+  "pollMs": 5000,
+  "futuresOrdersSec": 15,
+  "tpLevels": [10.40, 9.95],
+  "tpLevelsShort": [9.31, 9.11, 8.80],
+  "enableFutures": true,
+  "demo": false,
+  "proxy": ""
+}

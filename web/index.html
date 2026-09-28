@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e11">
+<title>币安账户实时看板</title>
+<style>
+  :root{
+    --bg:#0b0e11; --panel:#161a1e; --panel-2:#1e2329; --line:#2b3139;
+    --text:#eaecef; --muted:#848e9c; --up:#0ecb81; --down:#f6465d;
+    --brand:#f0b90b; --blue:#1e6bd6;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 600px at 50% -200px,#1a2029 0%,var(--bg) 60%);
+    color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;padding:0 0 40px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 14px}
+  /* ---------- 顶栏 ---------- */
+  header{
+    position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);
+    background:rgba(11,14,17,.86);border-bottom:1px solid var(--line);
+  }
+  .bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0}
+  .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--brand),#f8d33a);
+    display:grid;place-items:center;font-weight:800;color:#0b0e11;font-size:15px;flex:0 0 auto}
+  h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+  .sub{color:var(--muted);font-size:12px;white-space:nowrap}
+  .grow{flex:1 1 auto}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:6px;vertical-align:middle}
+  .dot.ok{background:var(--up);box-shadow:0 0 0 4px rgba(14,203,129,.16)}
+  .dot.warn{background:var(--brand);box-shadow:0 0 0 4px rgba(240,185,11,.16)}
+  .dot.err{background:var(--down);box-shadow:0 0 0 4px rgba(246,70,93,.16)}
+  .dot.load{background:var(--brand);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .badge.demo{color:#0b0e11;background:var(--brand);border-color:var(--brand);font-weight:700}
+  button{
+    font:inherit;color:var(--text);background:var(--panel-2);border:1px solid var(--line);
+    border-radius:10px;padding:7px 12px;cursor:pointer;transition:.15s;white-space:nowrap
+  }
+  button:hover{border-color:#3c4450;background:#252b33}
+  button.primary{background:var(--brand);color:#0b0e11;border-color:var(--brand);font-weight:700}
+  button.primary:hover{background:#f8d33a}
+  .progress{height:2px;background:transparent;overflow:hidden}
+  .progress i{display:block;height:2px;width:100%;background:linear-gradient(90deg,var(--brand),var(--up));transform-origin:left}
+  /* ---------- 卡片 / 概览 ---------- */
+  .cards{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:14px 0}
+  .card{background:linear-gradient(180deg,var(--panel),#12161a);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
+  .card .k{color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px}
+  .card .v{font-size:22px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;word-break:break-all}
+  .card .x{font-size:11px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+  .card.hero{grid-column:span 2;background:linear-gradient(135deg,#1d2430,#12161a);border-color:#39414e}
+  .card.hero .v{font-size:30px;color:var(--brand)}
+  .up{color:var(--up)!important}.down{color:var(--down)!important}
+  /* ---------- 区块 ---------- */
+  section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin:12px 0;overflow:hidden}
+  .head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .head h2{font-size:14px;margin:0;font-weight:700}
+  .head .n{color:var(--muted);font-size:12px}
+  .tabs{display:flex;gap:6px;margin-left:auto}
+  .tabs button{padding:4px 10px;font-size:12px;border-radius:999px}
+  .tabs button.on{background:var(--brand);color:#0b0e11;border-color:var(--brand);font-weight:700}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;min-width:640px}
+  th,td{padding:9px 12px;text-align:right;white-space:nowrap;font-size:13px}
+  th{color:var(--muted);font-weight:500;font-size:12px;background:#12161a;position:sticky;top:0}
+  td:first-child,th:first-child{text-align:left;position:sticky;left:0;background:var(--panel);z-index:1}
+  th:first-child{background:#12161a;z-index:2}
+  tbody tr{border-top:1px solid #23282f}
+  tbody tr:hover{background:#1a1f25}
+  .coin{display:flex;align-items:center;gap:8px}
+  .icon{width:24px;height:24px;border-radius:50%;background:var(--panel-2);display:grid;place-items:center;
+    font-size:10px;font-weight:700;color:var(--muted);flex:0 0 auto;border:1px solid var(--line)}
+  .name{font-weight:600}
+  .tag{font-size:10px;padding:1px 6px;border-radius:5px;background:var(--panel-2);color:var(--muted);border:1px solid var(--line)}
+  .tag.buy{color:var(--up);border-color:rgba(14,203,129,.35);background:rgba(14,203,129,.08)}
+  .tag.sell{color:var(--down);border-color:rgba(246,70,93,.35);background:rgba(246,70,93,.08)}
+  .tag.spot{color:#7cb8ff;border-color:rgba(30,107,214,.4);background:rgba(30,107,214,.12)}
+  .tag.fut{color:#c79bff;border-color:rgba(140,90,220,.4);background:rgba(140,90,220,.12)}
+  .pbar{height:6px;width:78px;background:var(--panel-2);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px}
+  .pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),#ffd75e);border-radius:4px}
+  .empty{padding:22px 14px;color:var(--muted);text-align:center;font-size:13px}
+  /* ---------- 提示 ---------- */
+  .alert{margin:12px 0;border-radius:var(--radius);padding:12px 14px;border:1px solid;font-size:13px;line-height:1.6}
+  .alert.err{background:rgba(246,70,93,.08);border-color:rgba(246,70,93,.35);color:#ffd0d6}
+  .alert.warn{background:rgba(240,185,11,.07);border-color:rgba(240,185,11,.3);color:#ffe9ab}
+  .alert b{color:#fff}
+  .alert code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-size:12px}
+  footer{color:var(--muted);font-size:11px;text-align:center;margin-top:18px;line-height:1.8}
+  .flash{animation:flash .6s ease-out}
+  @keyframes flash{0%{background:rgba(14,203,129,.10)}100%{background:transparent}}
+  @media (max-width:560px){
+    .card.hero{grid-column:span 2}
+    h1{font-size:15px}
+    .sub{display:none}
+    .card .v{font-size:19px}
+    .card.hero .v{font-size:24px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="bar">
+      <div class="logo">₿</div>
+      <div>
+        <h1>币安账户实时看板</h1>
+        <div class="sub" id="subline">正在连接…</div>
+      </div>
+      <span class="grow"></span>
+      <span id="demoBadge" class="badge demo" style="display:none">演示数据</span>
+      <span class="badge" id="status"><span class="dot load"></span>连接中</span>
+      <button id="btnRefresh" class="primary">立即刷新</button>
+      <button id="btnAuto">暂停</button>
+    </div>
+  </div>
+  <div class="progress"><i id="progressBar" style="transform:scaleX(0)"></i></div>
+</header>
+
+<div class="wrap">
+  <div id="alerts"></div>
+
+  <div class="cards">
+    <div class="card hero">
+      <div class="k">账户总权益（现货估值 + 合约账户权益）</div>
+      <div class="v" id="kpiTotal">--</div>
+      <div class="x" id="kpiTotalSub">--</div>
+    </div>
+    <div class="card">
+      <div class="k">现货资产估值</div>
+      <div class="v" id="kpiSpot">--</div>
+      <div class="x" id="kpiSpotSub">--</div>
+    </div>
+    <div class="card">
+      <div class="k">合约账户权益</div>
+      <div class="v" id="kpiFut">--</div>
+      <div class="x" id="kpiFutSub">--</div>
+    </div>
+    <div class="card">
+      <div class="k">合约未实现盈亏</div>
+      <div class="v" id="kpiUpnl">--</div>
+      <div class="x" id="kpiUpnlSub">--</div>
+    </div>
+    <div class="card">
+      <div class="k">合约可用保证金</div>
+      <div class="v" id="kpiAvail">--</div>
+      <div class="x" id="kpiAvailSub">--</div>
+    </div>
+    <div class="card">
+      <div class="k">当前委托 / 持仓</div>
+      <div class="v" id="kpiOrders">--</div>
+      <div class="x">条挂单 / 个合约持仓</div>
+    </div>
+  </div>
+
+  <section id="oddsSection" style="display:none">
+    <div class="head">
+      <h2>持仓概率</h2>
+      <span class="n" id="oddsMeta"></span>
+    </div>
+    <div id="oddsBody" style="padding:12px 14px"></div>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>资产明细</h2><span class="n" id="assetCount"></span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>币种</th><th>可用</th><th>冻结</th><th>合计</th>
+          <th>价格 (USDT)</th><th>估值 (USDT)</th><th>占比</th>
+        </tr></thead>
+        <tbody id="assetsBody"><tr><td colspan="7" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>当前委托</h2><span class="n" id="orderCount"></span>
+      <div class="tabs" id="orderTabs">
+        <button data-f="all" class="on">全部</button>
+        <button data-f="现货">现货</button>
+        <button data-f="合约">合约</button>
+      </div>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>交易对 / 市场</th><th>方向</th><th>类型</th><th>委托价</th><th>数量</th>
+          <th>已成交</th><th>未成交</th><th>剩余价值 (USDT)</th><th>状态</th><th>委托时间</th><th>订单号</th>
+        </tr></thead>
+        <tbody id="ordersBody"><tr><td colspan="11" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="head"><h2>合约持仓</h2><span class="n" id="posCount"></span></div>
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>合约</th><th>方向</th><th>数量</th><th>开仓价</th><th>标记价</th><th>强平价</th>
+          <th>杠杆 / 模式</th><th>名义价值 (USDT)</th><th>未实现盈亏</th><th>回报率</th><th>更新时间</th>
+        </tr></thead>
+        <tbody id="posBody"><tr><td colspan="11" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    数据来自币安官方 REST 接口（现货 <code>/api/v3/account</code> · <code>/api/v3/openOrders</code> · U 本位合约 <code>/fapi/*</code>）<br>
+    API Secret 只保存在服务端，浏览器请求的是本机聚合接口 <code>/api/snapshot</code>，不接触任何密钥。<br>
+    <span id="footInfo">--</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const state = { data: null, auto: true, pollMs: 3000, nextAt: 0, filter: "all", busy: false, failures: 0 };
+
+/* ---------------- 格式化 ---------------- */
+const nf = (v, d) => (v === null || v === undefined || isNaN(v)) ? "--"
+  : Number(v).toLocaleString("zh-CN", { minimumFractionDigits: d, maximumFractionDigits: d });
+const usd = (v, d = 2) => (v === null || v === undefined || isNaN(v)) ? "--" : "$" + nf(v, d);
+function qty(v) {
+  if (v === null || v === undefined || isNaN(v)) return "--";
+  const a = Math.abs(v);
+  if (a === 0) return "0";
+  if (a >= 1000) return nf(v, 2);
+  if (a >= 1) return nf(v, 4).replace(/0+$/, "").replace(/\.$/, "");
+  return Number(v).toPrecision(6).replace(/0+$/, "").replace(/\.$/, "");
+}
+const pct = (v) => (v === null || v === undefined || isNaN(v)) ? "--" : nf(v, 2) + "%";
+const dur = (s) => (s === null || s === undefined) ? "--" : (s >= 90 ? Math.round(s / 60) + " 分钟" : Math.round(s) + " 秒");
+const signUSD = (v) => (v > 0 ? "+" : v < 0 ? "-" : "") + usd(Math.abs(v));
+const cls = (v) => v > 0 ? "up" : v < 0 ? "down" : "";
+function timeStr(ms) {
+  if (!ms) return "--";
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+function ago(ms) {
+  if (!ms) return "";
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 60) return s + " 秒前";
+  if (s < 3600) return Math.floor(s / 60) + " 分钟前";
+  return Math.floor(s / 3600) + " 小时前";
+}
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const TYPE_CN = {
+  LIMIT: "限价", MARKET: "市价", STOP_LOSS: "止损", STOP_LOSS_LIMIT: "止损限价",
+  TAKE_PROFIT: "止盈", TAKE_PROFIT_LIMIT: "止盈限价", LIMIT_MAKER: "只做Maker",
+  STOP_MARKET: "止损市价", TAKE_PROFIT_MARKET: "止盈市价", TRAILING_STOP_MARKET: "追踪止损"
+};
+const STATUS_CN = {
+  NEW: "挂单中", PARTIALLY_FILLED: "部分成交", FILLED: "已成交", CANCELED: "已撤销",
+  PENDING_CANCEL: "撤单中", REJECTED: "已拒绝", EXPIRED: "已过期", EXPIRED_IN_MATCH: "已过期"
+};
+
+/* ---------------- 渲染 ---------------- */
+function setStatus(kind, text) {
+  const map = { ok: "ok", err: "err", load: "load", warn: "warn" };
+  $("status").innerHTML = `<span class="dot ${map[kind] || ""}"></span>${esc(text)}`;
+}
+
+function renderAlerts(d) {
+  const box = $("alerts");
+  let html = "";
+  if (d && d.coolingDown) {
+    html += `<div class="alert warn"><b>币安接口限流${d.cooldownSeconds >= 90 ? "（已升级为临时封禁）" : ""}，已自动暂停请求</b>
+      <div style="margin-top:6px">约 <b>${dur(d.cooldownSeconds)}</b>后自动恢复；当前显示的是
+      ${esc(timeStr(d.fetchedAtMs))} 的数据（${esc(ago(d.fetchedAtMs))}），期间不会继续消耗 IP 额度。</div>
+      <div style="margin-top:6px;color:#ffe9ab">建议：把刷新间隔调大（现在 ${Math.round((d.pollMs || 5000) / 1000)} 秒），
+      确认没有重复启动多个本程序、同一 IP 上没有别的币安轮询脚本；需要秒级推送请改用币安 WebSocket。</div></div>`;
+  }
+  if (d && !d.ok && d.error && !d.coolingDown) {
+    html += `<div class="alert err"><b>无法读取账户数据：</b>${esc(d.error)}
+      <div style="margin-top:8px;color:#ffb3bd">
+        排查建议：① 在 <code>config.json</code> 填好 <code>apiKey</code> 与 <code>apiSecret</code>；
+        ② 币安后台该 Key 需勾选「启用读取」并配置 IP 白名单；
+        ③ 若本机网络访问不了币安（部分地区/机房被限制），用 <code>-proxy http://127.0.0.1:7890</code> 或设置环境变量 <code>HTTPS_PROXY</code>；
+        ④ 报时间戳错误时校准本机系统时间。
+      </div></div>`;
+  }
+  (d && d.warnings ? d.warnings : []).forEach((w) => {
+    html += `<div class="alert warn">${esc(w)}</div>`;
+  });
+  box.innerHTML = html;
+}
+
+function renderKPIs(d) {
+  const t = d.totals || {}, s = d.spot || {}, f = d.futures || {};
+  $("kpiTotal").textContent = usd(t.grandTotal);
+  const unreal = f.unrealized || 0;
+  $("kpiTotalSub").innerHTML = `现货 ${usd(t.spotUSDT)} +（合约权益 ${usd(f.marginBalance || 0)}）
+    <span class="${cls(unreal)}">未实现 ${signUSD(unreal)}</span>`;
+  $("kpiSpot").innerHTML = `<span>${usd(t.spotUSDT)}</span>`;
+  $("kpiSpotSub").textContent = `${s.assetCount || 0} 个币种 · 冻结部分 ${usd(t.lockedSpotUSDT)}`
+    + (t.unpricedAssets ? ` · ${t.unpricedAssets} 个币种无 USDT 报价` : "");
+  $("kpiFut").textContent = f.enabled ? usd(f.marginBalance) : "--";
+  $("kpiFutSub").textContent = f.enabled
+    ? `钱包余额 ${usd(f.walletBalance)} · 起始保证金 ${usd(f.initialMargin)}`
+    : (f.error ? "合约数据不可用" : "合约查询已关闭");
+  $("kpiUpnl").innerHTML = `<span class="${cls(unreal)}">${f.enabled ? signUSD(unreal) : "--"}</span>`;
+  $("kpiUpnlSub").textContent = f.enabled ? `维持保证金 ${usd(f.maintMargin)}` : "--";
+  $("kpiAvail").textContent = f.enabled ? usd(f.available) : "--";
+  $("kpiAvailSub").textContent = f.enabled ? `占用率 ${f.marginBalance ? (100 * (f.initialMargin || 0) / f.marginBalance).toFixed(1) : "0.0"}%` : "--";
+  $("kpiOrders").textContent = `${t.openOrders || 0} / ${t.positions || 0}`;
+}
+
+function renderOdds(d) {
+  const sec = $("oddsSection");
+  const o = d && d.odds;
+  if (!o || !o.positions || !o.positions.length) { sec.style.display = "none"; return; }
+  sec.style.display = "";
+
+  const hs = o.horizons || [];
+  $("oddsMeta").textContent = (o.samples
+    ? `样本 ${(o.samples || 0).toLocaleString("zh-CN")} 根 15m（${o.from} ~ ${o.to}）`
+    : "");
+
+  const riskCls = (v) => v >= 60 ? "down" : v >= 30 ? "" : "up";
+  const oppCls = (v) => v >= 50 ? "up" : v >= 25 ? "" : "muted";
+
+  let html = "";
+  o.positions.forEach((p) => {
+    const dirTag = p.long ? '<span class="tag buy">多单</span>' : '<span class="tag sell">空单</span>';
+    html += `<div style="border-top:1px solid var(--line);padding:12px 0 4px">`;
+    html += `<div style="font-size:13px;margin-bottom:8px">
+      <b>${esc(p.symbol)}</b> ${dirTag}
+      ${p.amount ? `<span style="color:var(--muted)">${qty(p.amount)} ETC · 名义 ${usd(p.notional)}</span>` : ""}
+      <span style="color:var(--muted)">· 现价 <b style="color:var(--text)">${nf(p.price, 4)}</b></span>
+      ${p.entry ? `<span style="color:var(--muted)">· 开仓 ${nf(p.entry, 4)}</span>` : ""}
+    </div>`;
+
+    if (!p.ready) {
+      html += `<div class="empty">${esc(p.note || "概率模型构建中…")}</div></div>`;
+      return;
+    }
+
+    // 强平
+    if (p.liqValid) {
+      html += `<div class="alert err" style="margin:0 0 10px"><b>强平触及概率</b>
+        <span style="color:var(--muted);margin-left:6px">强平价 ${nf(p.liqPrice, 4)}（${p.long ? "-" : "+"}${nf(p.liqDistPct, 2)}%）</span>
+        <div style="margin-top:6px">`;
+      hs.forEach((h, i) => {
+        const v = (p.liqTouch || [])[i] || 0;
+        html += `<span style="margin-right:14px">${esc(h)} 内 <b class="${riskCls(v)}">${nf(v, 1)}%</b></span>`;
+      });
+      html += `</div></div>`;
+    } else {
+      html += `<div class="alert warn" style="margin:0 0 10px">
+        <b>无有效强平价</b>：${esc(p.note || "该腿方向与标的级强平价相反")}
+        <div style="margin-top:4px;color:#ffe9ab">下方只给出"摸到该档位"的概率，不含与强平的先后对比。</div></div>`;
+    }
+
+    // 止盈档（多单在上方 / 空单在下方）
+    html += `<div class="scroll"><table style="min-width:560px">
+      <thead><tr><th>${p.long ? "止盈档（上方）" : "止盈档（下方）"}</th><th>距离</th>`;
+    hs.forEach((h) => { html += `<th>${esc(h)} 摸到</th>`; });
+    html += `<th>${esc(hs[hs.length - 1] || "")} 先到 / 先被强平</th></tr></thead><tbody>`;
+    (p.targets || []).forEach((t) => {
+      html += `<tr><td><b>${esc(t.label)}</b><span style="color:var(--muted)"> ${nf(t.level, 4)}</span></td>
+        <td>${p.long ? "+" : "-"}${nf(t.distPct, 2)}%</td>`;
+      hs.forEach((h, i) => {
+        const v = (t.touch || [])[i] || 0;
+        html += `<td class="${oppCls(v)}">${nf(v, 1)}%</td>`;
+      });
+      const n = hs.length - 1;
+      if (p.liqValid && (t.first || []).length) {
+        const f = (t.first || [])[n] || 0, lf = (t.liqFirst || [])[n] || 0;
+        html += `<td><b class="${f > lf ? "up" : "down"}">${nf(f, 1)}%</b>
+          <span style="color:var(--muted)"> / </span><b class="down">${nf(lf, 1)}%</b></td>`;
+      } else {
+        html += `<td style="color:var(--muted)">—</td>`;
+      }
+      html += `</tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    // 读数
+    const valid = (p.targets || []).slice().sort((a, b) => a.distPct - b.distPct);
+    const t0 = valid[0];
+    if (t0 && p.liqValid) {
+      const n = hs.length - 1;
+      const f = (t0.first || [])[n] || 0, lf = (t0.liqFirst || [])[n] || 0;
+      const rr = (t0.distPct / (p.liqDistPct || 1)).toFixed(1);
+      const far = valid[valid.length - 1];
+      html += `<div class="alert warn" style="margin:10px 0 0">
+        <b>读数</b>：最近档 <b>${esc(t0.label)}</b>（${p.long ? "+" : "-"}${nf(t0.distPct, 2)}%）距离是强平距离（${nf(p.liqDistPct, 2)}%）的 <b>${rr} 倍</b>；
+        ${esc(hs[n])} 内<b class="${f > lf ? "up" : "down"}">先到止盈 ${nf(f, 1)}%</b>、
+        <b class="down">先被强平 ${nf(lf, 1)}%</b>。
+        ${far && far !== t0 ? `最远档 ${esc(far.label)}（${nf(far.distPct, 2)}%）先到概率 ${nf((far.first || [])[n] || 0, 1)}%。` : ""}
+        ${f < lf ? "→ 先被强平占优，可考虑降低止盈目标、减仓或补保证金。" : "→ 先到止盈占优。"}
+      </div>`;
+    } else if (t0) {
+      const n = hs.length - 1;
+      html += `<div class="alert warn" style="margin:10px 0 0">
+        <b>读数</b>：最近档 <b>${esc(t0.label)}</b>（${p.long ? "+" : "-"}${nf(t0.distPct, 2)}%），
+        ${esc(hs[n])} 内摸到概率 <b>${nf((t0.touch || [])[n] || 0, 1)}%</b>；该腿无有效强平价，不做先后对比。
+      </div>`;
+    }
+    html += `</div>`;
+  });
+  $("oddsBody").innerHTML = html;
+}
+
+function renderAssets(d) {
+  const rows = d.assets || [];
+  $("assetCount").textContent = rows.length ? `${rows.length} 个币种（按估值排序）` : "";
+  if (!rows.length) {
+    $("assetsBody").innerHTML = `<tr><td colspan="7" class="empty">现货账户没有可用余额</td></tr>`;
+    return;
+  }
+  $("assetsBody").innerHTML = rows.map((a) => {
+    const p = a.pct || 0;
+    return `<tr class="flash">
+      <td><div class="coin"><div class="icon">${esc(a.asset.slice(0, 4))}</div>
+        <span class="name">${esc(a.asset)}</span>
+        ${a.source ? `<span class="tag">${esc(a.source)}</span>` : `<span class="tag">无USDT报价</span>`}</div></td>
+      <td>${qty(a.free)}</td>
+      <td>${qty(a.locked)}</td>
+      <td><b>${qty(a.total)}</b></td>
+      <td>${a.hasPrice ? nf(a.price, a.price >= 1 ? 2 : 6) : "--"}</td>
+      <td><b>${a.hasPrice ? usd(a.value) : "--"}</b></td>
+      <td><span class="pbar"><i style="width:${Math.min(100, p).toFixed(2)}%"></i></span>${nf(p, 2)}%</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderOrders(d) {
+  const all = d.orders || [];
+  const rows = state.filter === "all" ? all : all.filter((o) => o.market === state.filter);
+  $("orderCount").textContent = all.length ? `共 ${all.length} 条挂单（现货 ${all.filter(o => o.market === "现货").length} / 合约 ${all.filter(o => o.market === "合约").length}）` : "";
+  if (!rows.length) {
+    $("ordersBody").innerHTML = `<tr><td colspan="11" class="empty">当前没有未成交委托</td></tr>`;
+    return;
+  }
+  $("ordersBody").innerHTML = rows.map((o) => `<tr>
+    <td><div class="coin"><span class="name">${esc(o.symbol)}</span>
+      <span class="tag ${o.market === "现货" ? "spot" : "fut"}">${esc(o.market)}</span>
+      ${o.reduceOnly ? '<span class="tag">只减仓</span>' : ""}</div></td>
+    <td><span class="tag ${o.side === "BUY" ? "buy" : "sell"}">${esc(o.sideText)}</span></td>
+    <td>${esc(TYPE_CN[o.type] || o.type)}${o.stopPrice ? `<span class="tag">触发 ${qty(o.stopPrice)}</span>` : ""}</td>
+    <td>${o.price ? qty(o.price) : "市价"}</td>
+    <td>${qty(o.qty)}</td>
+    <td>${qty(o.filled)}</td>
+    <td>${qty(o.remaining)}</td>
+    <td>${usd(o.notional)}</td>
+    <td>${esc(STATUS_CN[o.status] || o.status)}<div style="color:var(--muted);font-size:11px">${esc(o.timeInForce || "")}</div></td>
+    <td>${timeStr(o.time)}<div style="color:var(--muted);font-size:11px">${ago(o.updateTime || o.time)}更新</div></td>
+    <td style="color:var(--muted);font-size:11px">${o.orderId}<div>${esc(o.clientOrderId || "")}</div></td>
+  </tr>`).join("");
+}
+
+function renderPositions(d) {
+  const rows = d.positions || [];
+  $("posCount").textContent = rows.length ? `共 ${rows.length} 个持仓` : "";
+  if (!rows.length) {
+    $("posBody").innerHTML = `<tr><td colspan="11" class="empty">没有合约持仓</td></tr>`;
+    return;
+  }
+  $("posBody").innerHTML = rows.map((p) => `<tr>
+    <td><div class="coin"><span class="name">${esc(p.symbol)}</span>
+      <span class="tag ${p.sideText === "多头" ? "buy" : "sell"}">${esc(p.sideText)}</span></div></td>
+    <td>${esc(p.sideText)}${p.positionSide && p.positionSide !== "BOTH" ? `<div style="color:var(--muted);font-size:11px">${esc(p.positionSide)}</div>` : ""}</td>
+    <td>${qty(p.amount)}</td>
+    <td>${qty(p.entryPrice)}</td>
+    <td>${qty(p.markPrice)}</td>
+    <td class="${p.liqPrice ? "down" : ""}">${p.liqPrice ? qty(p.liqPrice) : "--"}</td>
+    <td>${esc(p.leverage)}x<div style="color:var(--muted);font-size:11px">${p.marginType === "isolated" ? "逐仓" : "全仓"}</div></td>
+    <td>${usd(p.notional)}</td>
+    <td class="${cls(p.unrealized)}"><b>${signUSD(p.unrealized)}</b></td>
+    <td class="${cls(p.roePct)}">${pct(p.roePct)}</td>
+    <td style="color:var(--muted);font-size:11px">${timeStr(p.updateTime)}</td>
+  </tr>`).join("");
+}
+
+function render(d) {
+  state.data = d;
+  state.pollMs = Math.max(1000, d.pollMs || 3000);
+  $("demoBadge").style.display = d.demo ? "" : "none";
+  renderAlerts(d);
+  renderKPIs(d);
+  renderOdds(d);
+  renderAssets(d);
+  renderOrders(d);
+  renderPositions(d);
+  $("footInfo").textContent =
+    `最近一次数据获取：${timeStr(d.fetchedAtMs)}（${ago(d.fetchedAtMs)}）· 服务端耗时 ${d.latencyMs} ms · 刷新间隔 ${state.pollMs / 1000}s`
+    + (d.usedWeight1M ? ` · 币安已用权重 ${d.usedWeight1M}/2400（每分钟）` : "")
+    + (d.futuresOrdersAgeMs > 1500 ? ` · 合约委托 ${Math.round(d.futuresOrdersAgeMs / 1000)} 秒前查询` : "")
+    + ` · 数据源 ${d.source}`;
+  if (d.coolingDown) {
+    setStatus("warn", `限流暂停 ${dur(d.cooldownSeconds)}`);
+  } else if (d.ok) {
+    setStatus("ok", d.demo ? "未连接币安" : "实时连接正常");
+  } else {
+    setStatus("err", "数据异常");
+  }
+}
+
+/* ---------------- 拉取 ---------------- */
+async function load(manual) {
+  if (state.busy) return;
+  state.busy = true;
+  if (manual || !state.data) setStatus("load", "刷新中…");
+  try {
+    const res = await fetch("/api/snapshot?_=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const d = await res.json();
+    state.failures = 0;
+    render(d);
+  } catch (e) {
+    state.failures++;
+    setStatus("err", "本地服务连接失败 (" + state.failures + ")");
+    if (state.failures === 1 || manual) {
+      $("alerts").innerHTML = `<div class="alert err"><b>无法连接本机服务：</b>${esc(e.message)}
+        <div style="margin-top:6px;color:#ffb3bd">请确认 Go 程序仍在运行，且浏览器访问的地址与程序输出的地址一致。</div></div>`;
+    }
+  } finally {
+    state.busy = false;
+    state.nextAt = Date.now() + state.pollMs;
+  }
+}
+
+/* ---------------- 定时器 / 交互 ---------------- */
+function tick() {
+  if (state.auto && !state.busy && Date.now() >= state.nextAt) load(false);
+  const remain = Math.max(0, state.nextAt - Date.now());
+  const r = state.auto ? Math.min(1, remain / state.pollMs) : 0;
+  $("progressBar").style.transform = `scaleX(${r})`;
+  const label = state.data ? ago(state.data.fetchedAtMs) : "";
+  if (state.data) $("subline").textContent =
+    `更新于 ${timeStr(state.data.fetchedAtMs)}` + (label ? `（${label}）` : "") + (state.auto ? " · 自动刷新中" : " · 已暂停");
+  requestAnimationFrame(() => setTimeout(tick, 100));
+}
+
+$("btnRefresh").onclick = () => load(true);
+$("btnAuto").onclick = () => {
+  state.auto = !state.auto;
+  $("btnAuto").textContent = state.auto ? "暂停" : "继续";
+  state.nextAt = Date.now() + state.pollMs;
+  if (state.auto) load(false);
+};
+$("orderTabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-f]");
+  if (!b) return;
+  state.filter = b.dataset.f;
+  [...$("orderTabs").children].forEach((x) => x.classList.toggle("on", x === b));
+  if (state.data) renderOrders(state.data);
+});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) { state.nextAt = 0; load(false); }
+});
+
+load(true);
+tick();
+</script>
+</body>
+</html>

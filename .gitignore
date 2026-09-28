@@ -1,0 +1,7 @@
+config.json
+*.exe
+*.exe~
+*.log
+.gocache/
+.gomodcache/
+.gopath/
